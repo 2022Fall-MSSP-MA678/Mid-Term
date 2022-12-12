@@ -1,0 +1,399 @@
+---
+title: "MA678 Mid-Term Project: BigMac Price trending around the world"
+author: "Tianjian Xie"
+date: "2022-11-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(magrittr)
+library(hrbrthemes)
+library(gridExtra)
+library(grid)
+library(readxl)
+library(ggrepel)
+library(latticeExtra)
+library(lme4)
+library(PerformanceAnalytics)
+library(merTools)
+```
+
+## Abstract
+
+Big Mac, one of the flagship products and signature dishes, sold by McDonald's which is one of the largest international fast food restaurant chain, is one of the most popular hamburgers around the world. Since it's so popular, we can seem it as an index of the commodity price in different countries. The question is, from the past twenty years, how did the Big Mac's prices changed in different countries around the world? Can the change of the price reflect the inflation? More specific, does the price changes similar to the inflation rate of the same country? In this study, I'm going to use multilevel models to find the correlation between these factors. 
+
+
+## Introduction
+
+Usually, in economics idea, "Commodity prices are believed to be a leading indicator of inflation through two basic channels", and "changes in prices reflect systemic shocks, such as hurricanes which can decimate the supply of agricultural products and subsequently increase supply costs"("The Correlation of Commodities to Inflation", Trevir I Nath). Then by the time the products reach to consumers, the price increase, and the inflation would be realized. In this study case, I choose "Big Mac" as the representative of agricultural products(not only) to shows the change in price in several different countries and for the whole world. The reason I think Big Mac is a good example is when the McDonald's companies in different countries pricing their products, they need to consider about multiple influence factors such as agricultural product price in local and international food price, the employees' salary, the rent of the store, or even the exchange rate of local currency to USD. By considering such much factors, the little change of local inflation rate can reflect in large change in the price of Big Mac.
+
+However, there is a problem that we can't simply give conclusion based on the price changes of Big Mac since different countries have different dietary habits. My favorite McDonald's burger is "Premium Grilled Chicken Burger", and this item only provided in China mainland. So I think it's possible that when the local McDonald's companies are pricing their Big Mac, the inflation rate doesn't affect most. 
+
+Based on the above points, I decide to divide my report into two parts. First I'm going to find the dollar price changes trending of different countries by years and make comparison to the change trending of local price and exchange price of USD to see if there is any correlations between these three factors, then I will compare the local price changes with the local inflation rate. Secondly, I will group the data by date to compute the average dollar price of global Big Mac price and do visualization of price changes trending. I hope by these two parts I can find if there is correlation between inflation rate and price of Big Mac.
+
+\newpage
+## Methods
+## Input Data
+```{r echo=FALSE}
+data1 <- read.csv("BigmacPrice.csv")
+HCPI_data <- read_xlsx("Inflation-data.xlsx", 5)
+FCPI_data <- read_xlsx("Inflation-data.xlsx", 8)
+```
+
+| column names      | explanation                                     |
+| :--:              | :-----                                          |
+| date              | Date the price is collected                     |
+| currency_code     | Code of local currency                          |
+| name              | Name of local country                           |
+| local_price       | Big Mac price in local currency                 |
+| dollar_exchange   | USD exchange rate                               |
+| dollar_price      | Big Mac price in USD                            |
+
+The first data is from kaggle resource(https://www.kaggle.com/datasets/vittoriogiatti/bigmacprice). This dataset include the McDonalds' Big Mac price for every country in the world from 2000 to 2022. For most countries, the price is collected once annually. 
+
+The second dataset is from the World Bank's "A Global Database of Inflation" (https://www.worldbank.org/en/research/brief/inflation-database). This dataset covers up to 196 countries over the period 1970-2022, and includes six measures of inflation in three frequencies (annual, quarterly, and monthly): Headline consumer price index (CPI) inflation, Food CPI inflation, Energy CPI inflation, Core CPI inflation, Producer price index inflation, and Gross domestic product deflator. In this study, I pick two of the measures: HCPI and FCPI, which I think have stronger connection to the Big Mac price.
+
+## Data Cleaning Process
+```{r echo=FALSE}
+## Data Cleaning
+data1$date <- as.Date(data1$date)
+## For the HCPI and FCPI data, I just need the data after 2000.
+HCPI_data <- HCPI_data[,-c(6:35)]
+FCPI_data <- FCPI_data[,-c(6:35)]
+```
+
+For the Big Mac Price dataset, make the date variable becomes date form.
+
+For the CPI dataset, delete the useless date part, which is date before 2000, since for Big Mac price we only have data after 2000. Also, only keep the countries exist in the first dataset. So the two dataset can fit.
+
+## EDA
+
+After the data cleaning process, I've got two datasets, first is the Big Mac price, which has 1946 observations and 6 variables, data, countries, and different kinds of Big Mac price. For the FCPI and HCPI datasets, both keep 64 observations and 27 variables. Which means 64 countries both appeared in Big Mac dataset and CPI datasets.
+
+Next step, I'm going to choose a country as example to see if my hypothesis that HCPI has similar changing rate with FCPI, and the correlation between dollar price and CPIs is porpotional.
+
+## Choose Argentina as example  
+```{r echo=FALSE, message=FALSE, fig.width=10, fig.cap="Figure 1: Change of Big Mac Price and Dollar Exchange Price", fig.align='center'}
+set.seed(1)
+#Dataset with Argentina only
+row_ARS <- grep("Argentina", data1$name, ignore.case = FALSE)
+data1_ARS <- data1 %>% slice(row_ARS)
+#Plot the change of BigMac Price in Argentina
+p1 <- data1_ARS %>%
+  ggplot( aes(x=date, y=dollar_price)) +
+    geom_line( color="grey") +
+    geom_point(shape=21, color="black", fill="#69b3a2", size=2) +
+    ggtitle("Evolution of BigMac dollar price")+
+    theme(plot.title = element_text(size = 7))
+p2 <- data1_ARS %>%
+  ggplot( aes(x=date, y=local_price)) +
+    geom_line( color="grey") +
+    geom_point(shape=21, color="black", fill="cyan", size=2) +
+    ggtitle("Evolution of BigMac local price")+
+    theme(plot.title = element_text(size = 7))
+p3 <- data1_ARS %>%
+  ggplot( aes(x=date, y=dollar_ex)) +
+    geom_line( color="grey") +
+    geom_point(shape=21, color="black", fill="brown1", size=2) +
+    ggtitle("Evolution of Dollar exchange price(ARS)") +
+    theme(plot.title = element_text(size = 7))
+grid.arrange(p1, p2, p3, ncol = 3)
+```
+
+
+Figure 1 shows the change of Big Mac dollar price, local price and the exchange price of USD to ARS in Argentina by years. We can see that although the exchange price of USD to ARS had a extreme increase, the dollar price didn't change such extremely. The reason is the local price of Big Mac increased in a similar slop as the Dollar exchange price.
+
+## HCPI and FCPI of Argentina
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.cap="Figure 2: Argentine HCPI and FCPI Changes by Year", fig.align='center'}
+row_HCPI_ARG <- grep("Argentina", HCPI_data$Country, ignore.case = FALSE)
+row_FCPI_ARG <- grep("Argentina", FCPI_data$Country, ignore.case = FALSE)
+HCPI_data_ARG <- HCPI_data %>% slice(row_HCPI_ARG)
+FCPI_data_ARG <- FCPI_data %>% slice(row_FCPI_ARG)
+HCPI_ARG <- c(HCPI_data_ARG[1,c(6:27)])
+FCPI_ARG <- c(FCPI_data_ARG[1,c(6:27)])
+Year <- c(2000:2021)
+df_CPI_ARG <- as.data.frame(t(rbind(Year,HCPI_ARG,FCPI_ARG)))
+rownames(df_CPI_ARG) <- c(1:22)
+na_rows <- grep("NA",df_CPI_ARG$FCPI_ARG,ignore.case = FALSE)
+df_CPI_ARG_1 <- df_CPI_ARG[-c(na_rows),]
+df_CPI_ARG_1$HCPI_ARG <- as.numeric(df_CPI_ARG_1$HCPI_ARG)
+df_CPI_ARG_1$FCPI_ARG <- as.numeric(df_CPI_ARG_1$FCPI_ARG)
+p4 <- xyplot(HCPI_ARG ~ Year, data=df_CPI_ARG, type = "l" , lwd=2)
+p5 <- xyplot(FCPI_ARG ~ Year, data=df_CPI_ARG_1, type = "l" , lwd=2)
+doubleYScale(p4, p5, text = c("HCPI", "FCPI") , add.ylab2 = TRUE)
+```
+
+
+Figure 2 shows the changes of Headline CPI Inflation and Food CPI Inflation by years. Part of the pink line (2006-2017) has a straight slope because these years' Argentine FCPI data is missing. Ignoring this part, the rest part of the pink line has similar trending with the blue line, which is the HCPI. We can say the graph shows Argentine HCPI and FCPI are having similar change trends in these years. Moreover, as the Figure 1 shows, when the price of Big Mac dropped during years before 2020, the HCPI and FCPI also deceased. This may partially shows the direct proportion of Big Mac price to the CPI inflation rate. 
+
+## Whole Data
+So since I have had a incomplete proof of our hypothesis that there is a direct proportion of inflation to the Big Mac price. Now it's time to see how the whole data set perform the correlation. 
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.cap="Figure 3: Mean HCPI and FCPI of All Countries Changes by Year", fig.align='center'}
+#Compute the mean dollar price around the world for each unique date
+df_Mean_World_Price <- data1 %>% group_by(date) %>%
+                        summarise(Year=unique(date),
+                                  mean_price=mean(dollar_price, na.rm=TRUE))
+countries_data1 <- unique(data1$name)
+countries_HCPI <- unique(HCPI_data$Country)
+countries_FCPI <- unique(FCPI_data$Country)
+int1 <- intersect(countries_data1,countries_FCPI)
+int2 <- intersect(int1, countries_HCPI)
+a <- c()
+for(i in(1:170)){
+  if(sum(grepl(FCPI_data$Country[i],int2)) != 0){
+    a <- c(a,i)
+  }
+}
+Cleaned_HCPI <- HCPI_data[a,]
+Cleaned_FCPI <- FCPI_data[a,]
+Cleaned_HCPI$`2000` <- as.numeric(Cleaned_HCPI$`2000`)
+Cleaned_HCPI$`2001` <- as.numeric(Cleaned_HCPI$`2001`)
+Cleaned_HCPI$`2002` <- as.numeric(Cleaned_HCPI$`2002`)
+Cleaned_HCPI$`2003` <- as.numeric(Cleaned_HCPI$`2003`)
+for(i in(6:27)){
+  Cleaned_FCPI[,i] <- as.numeric(unlist(Cleaned_FCPI[,i]))
+  Cleaned_HCPI[,i] <- as.numeric(unlist(Cleaned_HCPI[,i]))
+}
+mean_HCPI <- c(mean(na.omit(Cleaned_HCPI$`2000`)),
+               mean(na.omit(Cleaned_HCPI$`2001`)),
+               mean(na.omit(Cleaned_HCPI$`2002`)),
+               mean(na.omit(Cleaned_HCPI$`2003`)),
+               mean(na.omit(Cleaned_HCPI$`2004`)),
+               mean(na.omit(Cleaned_HCPI$`2005`)),
+               mean(na.omit(Cleaned_HCPI$`2006`)),
+               mean(na.omit(Cleaned_HCPI$`2007`)),
+               mean(na.omit(Cleaned_HCPI$`2008`)),
+               mean(na.omit(Cleaned_HCPI$`2009`)),
+               mean(na.omit(Cleaned_HCPI$`2010`)),
+               mean(na.omit(Cleaned_HCPI$`2011`)),
+               mean(na.omit(Cleaned_HCPI$`2012`)),
+               mean(na.omit(Cleaned_HCPI$`2013`)),
+               mean(na.omit(Cleaned_HCPI$`2014`)),
+               mean(na.omit(Cleaned_HCPI$`2015`)),
+               mean(na.omit(Cleaned_HCPI$`2016`)),
+               mean(na.omit(Cleaned_HCPI$`2017`)),
+               mean(na.omit(Cleaned_HCPI$`2018`)),
+               mean(na.omit(Cleaned_HCPI$`2019`)),
+               mean(na.omit(Cleaned_HCPI$`2020`)),
+               mean(na.omit(Cleaned_HCPI$`2021`)))
+mean_FCPI <- c(mean(na.omit(Cleaned_FCPI$`2000`)),
+               mean(na.omit(Cleaned_FCPI$`2001`)),
+               mean(na.omit(Cleaned_FCPI$`2002`)),
+               mean(na.omit(Cleaned_FCPI$`2003`)),
+               mean(na.omit(Cleaned_FCPI$`2004`)),
+               mean(na.omit(Cleaned_FCPI$`2005`)),
+               mean(na.omit(Cleaned_FCPI$`2006`)),
+               mean(na.omit(Cleaned_FCPI$`2007`)),
+               mean(na.omit(Cleaned_FCPI$`2008`)),
+               mean(na.omit(Cleaned_FCPI$`2009`)),
+               mean(na.omit(Cleaned_FCPI$`2010`)),
+               mean(na.omit(Cleaned_FCPI$`2011`)),
+               mean(na.omit(Cleaned_FCPI$`2012`)),
+               mean(na.omit(Cleaned_FCPI$`2013`)),
+               mean(na.omit(Cleaned_FCPI$`2014`)),
+               mean(na.omit(Cleaned_FCPI$`2015`)),
+               mean(na.omit(Cleaned_FCPI$`2016`)),
+               mean(na.omit(Cleaned_FCPI$`2017`)),
+               mean(na.omit(Cleaned_FCPI$`2018`)),
+               mean(na.omit(Cleaned_FCPI$`2019`)),
+               mean(na.omit(Cleaned_FCPI$`2020`)),
+               mean(na.omit(Cleaned_FCPI$`2021`)))
+Year1 <- c(2000:2021)
+df_mean_CPI <- data.frame(mean_HCPI=mean_HCPI,
+                       mean_FCPI=mean_FCPI,
+                       Year=Year1)
+
+p6 <- xyplot(mean_HCPI ~ Year, df_mean_CPI, type = "l" , lwd=2)
+p7 <- xyplot(mean_FCPI ~ Year, df_mean_CPI, type = "l", lwd=2)
+
+doubleYScale(p6, p7, text = c("mean HCPI", "mean FCPI") , add.ylab2 = TRUE)
+```
+
+Figure 3 shows the changes of HCPI and FCPI of the world, which is calculated as the mean of all countries' both kinds of CPIs. Similar to Figure 2, The HCPI and FCPI share a similar changing trend, this may because HCPI is partial affected by FCPI since it's measured base on the combination of other kinds of inflation. 
+
+And the world mean price changing against HCPI.
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.cap="Figure 4: World Mean Price and HCPI of All Countries Changes by Year", fig.align='center'}
+mean_price <- c(2.323929, 2.157143, 2.301212, 2.425312, 2.444000, 2.715122, (2.749687+2.823171)/2, 
+                (2.943659+3.200732)/2, 3.649000, 3.463171, (3.648293+3.755854)/2, 4.011818,
+                (3.890909+3.788491)/2, (4.131636+3.946727)/2, (3.897321+3.918596)/2, (3.676250+3.607321)/2,
+                (3.442857+3.731607)/2, (3.739286+3.848929)/2, (3.893571+3.602083)/2, (3.599444+3.669861)/2,
+                (3.716111+3.718750)/2, (3.769028+3.816164)/2, (3.915479+4.003571)/2)
+df_Mean_World_Price_1 <- data.frame(Year=Year1,
+                                    Price=mean_price[1:22])
+p8 <- xyplot(Price ~ Year, df_Mean_World_Price_1, type = "l", lwd=2)
+doubleYScale(p8, p6, text = c("world mean price", "mean HCPI") , add.ylab2 = TRUE)
+```
+
+Figure 4 shows the changes of world mean Big Mac price and mean HCPI of the world. As the graph shows, for some parts of the line, as the slope of HCPI becomes steeper, the mean price will increase, but in the other parts, the correlation looks opposite.
+
+## Data Grouped by Countries
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.cap="Figure 5: Mean Price, HCPI, and FCPI of countries over years", fig.align='center'}
+b <- c()
+for(i in(1:1946)){
+  if(sum(grepl(data1$name[i],int2)) != 0){
+    b <- c(b,i)
+  }
+}
+cleaned_data1 <- data1[b,]
+df_count_price_date <- cleaned_data1 %>% group_by(date) %>%
+  summarize(mean_dollar_Pirce=mean(dollar_price))
+df_all <- merge(df_Mean_World_Price_1 ,df_mean_CPI, by='Year')
+
+df_count_price_date_1 <- cleaned_data1 %>% group_by(name) %>%
+  summarize(mean_dollar_Pirce=mean(dollar_price))
+HCPI_data <- as.data.frame(HCPI_data)
+HCPI_data <- HCPI_data[1:193,]
+df_HCPI_count <- HCPI_data %>% 
+  summarize(Country=Country,
+    Mean_HCPI=rowMeans(HCPI_data[,6:27],na.rm=TRUE))
+FCPI_data <- as.data.frame(FCPI_data)
+FCPI_data <- FCPI_data[1:193,]
+df_FCPI_count <- FCPI_data %>% 
+  summarize(Country=Country,
+    Mean_FCPI=rowMeans(FCPI_data[,6:27],na.rm=TRUE))
+df_CPI_count <- merge(df_HCPI_count,df_FCPI_count, by="Country")
+names(df_count_price_date_1)[names(df_count_price_date_1) == "name"] <- "Country"
+df_count <- merge(df_count_price_date_1, df_CPI_count, by="Country")
+names(df_count)[names(df_count) == "mean_dollar_Pirce"] <- "Mean_Dollar_Price"
+Countries <- rep(c(df_count$Country),3)
+Variables <- rep(c("Mean Dollar Price" , "Mean HCPI" , "Mean FCPI") , 64)
+Value <- df_count[,2:4]
+df2 <- data.frame(Countries, Variables, Value)
+df2$Mean_Dollar_Price <- round(df2$Mean_Dollar_Price,3)
+df2$Mean_HCPI <- round(df2$Mean_HCPI,3)
+df2$Mean_FCPI <- round(df2$Mean_FCPI,3)
+df2 <- df2 %>% 
+  unite(Value, c(Mean_Dollar_Price, Mean_HCPI,Mean_FCPI), sep = " ", remove = FALSE)
+# Grouped
+ggplot(df2, aes(fill=Variables, y=Value, x=Countries)) + 
+    geom_bar(position="dodge", stat="identity")
+```
+
+
+## Model Fitting
+Since the previous steps seem proved the hypothesis, to be more scientific and accurate, let's fit some models to find a clear correlation.
+```{r echo=FALSE, warning=FALSE, message=FALSE, fig.width=10, fig.cap="Figure 6: Correlation Matrix", fig.align='center'}
+names(df_all)[names(df_all) == "Price"] <- "Mean_Dollar_Price"
+model1 <- lm(Mean_Dollar_Price~mean_FCPI+mean_HCPI, data = df_all)
+summary(model1)
+chart.Correlation(df_all, histogram=TRUE, pch=20)
+```
+
+Figure 6 shows the correlations between the variables of the dataset grouped by year(for each year, shows a mean dollar price, mean HCPI, and mean FCPI). 
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+model2 <- lm(Mean_Dollar_Price~Mean_FCPI+Mean_HCPI, data=df_count)
+summary(model2)
+```
+
+The multilevel model.
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+unidate <- as.list(unique(cleaned_data1$date))
+unidate <- c("2000-04-01","2001-04-01","2002-04-01","2003-04-01","2004-05-01","2005-06-01","2006-01-01",
+             "2007-01-01","2008-06-01","2009-07-01","2010-01-01","2011-07-01","2012-01-01","2012-07-01",
+             "2013-01-01","2014-01-01","2015-01-01","2016-01-01","2017-01-01","2018-01-01","2019-01-01",
+             "2020-01-14","2021-01-01")
+c <- c()
+for(i in(1:1635)){
+  if(sum(grepl(as.character.Date(cleaned_data1$date[i]),unidate)) != 0){
+    c <- c(c,i)
+  }
+}
+cleaned_data2 <- cleaned_data1[c,]
+cleaned_data2 <- cleaned_data2 %>% separate(date,into = c("Year","Month","Day"),sep = "-")
+cleaned_HCPI <- as_tibble(Cleaned_HCPI)
+cleaned_FCPI <- as_tibble(Cleaned_FCPI)
+tb_HCPI <-  cleaned_HCPI %>% 
+  pivot_longer(c(`2000`, `2001`,`2002`,`2003`,`2004`,`2005`,`2006`,`2007`,`2008`,`2009`,`2010`,`2011`,
+                 `2012`,`2013`,`2014`,`2015`,`2016`,`2017`,`2018`,`2019`,`2020`,`2021`), names_to = "Year",
+               values_to = "HCPI")
+tb_FCPI <-  cleaned_FCPI %>% 
+  pivot_longer(c(`2000`, `2001`,`2002`,`2003`,`2004`,`2005`,`2006`,`2007`,`2008`,`2009`,`2010`,`2011`,
+                 `2012`,`2013`,`2014`,`2015`,`2016`,`2017`,`2018`,`2019`,`2020`,`2021`), names_to = "Year",
+               values_to = "FCPI")
+tb_CPI <- merge(tb_HCPI,tb_FCPI, by=c('Year','Country'))
+names(cleaned_data2)[names(cleaned_data2) == "name"] <- "Country"
+tb_all <- merge(tb_CPI,cleaned_data2, by=c('Year','Country'))
+tb_all_1 <- data.frame(Year=factor(tb_all$Year),
+                          Country=factor(tb_all$Country),
+                                  HCPI=as.numeric(tb_all$HCPI),
+                                  FCPI=as.numeric(tb_all$FCPI),
+                                  Local_Price=as.numeric(tb_all$local_price),
+                                  Dollar_Ex=as.numeric(tb_all$dollar_ex),
+                                  Dollar_Price=as.numeric(tb_all$dollar_price))
+log_tb_all_1 <- tb_all_1
+log_tb_all_1$FCPI[which(is.nan(log_tb_all_1$FCPI))] <- 0
+log_tb_all_1$Year         <- factor(log_tb_all_1$Year)
+log_tb_all_1$Country      <- factor(log_tb_all_1$Country)
+log_tb_all_1$HCPI         <- log(log_tb_all_1$HCPI      + 1)
+log_tb_all_1$FCPI         <- log(log_tb_all_1$FCPI  + 1)
+log_tb_all_1$Local_Price  <- log(log_tb_all_1$Local_Price      + 1)
+log_tb_all_1$Dollar_Ex    <- log(log_tb_all_1$Dollar_Ex + 1)
+log_tb_all_1$Dollar_Price <- log(log_tb_all_1$Dollar_Price    + 1)
+```
+
+
+```{r , warning=FALSE, message=FALSE}
+model <- lmer(Dollar_Price ~ Year +
+                Country + HCPI + FCPI +
+                Local_Price + Dollar_Ex +
+                (1 + HCPI + FCPI|Year)+
+                (1 + Local_Price|Dollar_Ex),
+              data = log_tb_all_1)
+summary(model)
+```
+As we mentioned before, dollar price of Big Mac are effected by local price based on the exchange rate of USD, and the CPI as year passing. So in this model, I choose the interaction of HCPI and FCPI on year, and local price on USD exchange rate to build the function. To make the coefficient more clear, I choose to log the data.
+
+```{r echo=FALSE, fig.height=5, fig.width=8, fig.cap="Figure 7: Simulation of Fixed Effect", fig.align='center'}
+plotFEsim(FEsim(model, n.sims = 100), level = 0.9, stat = 'median', intercept = FALSE)
+```
+This figure is the plot of the results of a simulation of the fixed effects in the model.
+
+## Result
+As what I did before, now choose 2019 Guatemala as example, we can get the formula that:
+$$ log(Dollar_Price + 1) = 1.6983079  +  0.0019245 - 0.7980553 - 0.0001568 \times log(HCPI + 1)$$ 
+$$  -0.0003673 \times log(FCPI + 1) +0.7879166 \times log(Local_Price + 1) -0.9088954 \times log(Dollar_Ex + 1) $$
+In the formula, all the parameters except Year and Country are positive, because in the assumption, all the other parameters should have direct proportion to the dollar price. However, for the year and country, we can not say that as year passing, or the country changing, the dollar price will certainly increase. So can not set them as positive parameters in this model. In this example, at the same year, the log scale of dollar price of Big Mac will decrease by 0.7980553 for Guatemala, for the other countries, they may also have some increase or decrease. 
+
+## Discussion
+By checking the coefficients of HCPI, FCPI, Country and Year, we can see in log scale, HCPI and FCPI are not having large effect on the final dollar price as I expected, the Big Mac price are more likely to be affected by different countries, when two countries are having similar CPIs, in the same year, the only effect would be the local price and dollar exchange rate. 
+This fit my expectation partially, to check where is the problem, let's check the model.
+```{r echo=FALSE, fig.height=4, fig.width=8, fig.cap="Figure 8: Residual Plot and QQ Plot of Model", fig.align='center'}
+residul_plot <- plot(model)
+qq_plot      <- qqmath(model)
+grid.arrange(residul_plot, qq_plot, ncol = 2)
+```
+The figure shows how the model fit the data set. As the right graph shows, the amount of residuals is huge, which means the model I build can not represent the data set very well. The model is under the assumption that the Big Mac price will be affected by CPIs and exchange rate of USD based on the local price. The result of this study is the Big Mac price's changing is more based on the local price and the change of USD exchange rate for different countries. I prefer to say one main problem is the local price change is also based on the CPI changes, so when I put the CPIs into the model, the affect of CPIs were calculated twice.
+
+
+\newpage
+
+## Appendix
+```{r echo=FALSE, warning=FALSE}
+dist_Dollar_Price <- ggplot(data=tb_all_1,aes(x=Dollar_Price))+geom_histogram(aes(y=..density..),bins=30,fill="#999999")+geom_density(lwd=1,alpha=.4,fill="#999999")+labs(title="Dollar Price")
+dist_Local_Price <- ggplot(data=tb_all_1,aes(x=Local_Price))+geom_histogram(aes(y=..density..),bins=30,fill="#0875F7")+geom_density(lwd=1,alpha=.4,fill="#0875F7")+labs(title="Local Price")
+dist_Dollar_Ex <- ggplot(data=tb_all_1,aes(x=Dollar_Ex))+geom_histogram(aes(y=..density..),bins=30,fill="#ECF708")+geom_density(lwd=1,alpha=.4,fill="#ECF708")+labs(title="Dollar Exchange Price")
+dist_HCPI <- ggplot(data=tb_all_1,aes(x=HCPI))+geom_histogram(aes(y=..density..),bins=30,fill="#08F77C")+geom_density(lwd=1,alpha=.4,fill="#08F77C")+labs(title="HCPI")
+dist_FCPI <- ggplot(data=tb_all_1,aes(x=FCPI))+geom_histogram(aes(y=..density..),bins=30,fill="#D308F7")+geom_density(lwd=1,alpha=.4,fill="#D308F7")+labs(title="FCPI")
+```
+
+```{r echo=FALSE, warning=FALSE, fig.height=4, fig.width=9, fig.cap="Distribution Plots"}
+grid.arrange(dist_Dollar_Price, dist_Local_Price, dist_Dollar_Ex, dist_HCPI, dist_FCPI, ncol = 3, nrow = 2)
+```
+## References
+
+[1] Bigmac Prices
+https://www.kaggle.com/datasets/vittoriogiatti/bigmacprice
+
+[2] "The Correlation of Commodities to Inflation" by TREVIR I NATH (Updated August 01, 2022).
+https://www.investopedia.com/articles/investing/020816/importance-commodity-pricing-understanding-inflation.asp
+
+[3] "One-Stop Source: A Global Database of Inflation." by Ha, Jongrim, M. Ayhan Kose, and Franziska Ohnsorge (2021). Policy Research Working Paper 9737. World Bank, Washington DC.
+https://www.worldbank.org/en/research/brief/inflation-database
+
+[4] "R Tutorial 8: Propensity Score Matching"
+https://sejdemyr.github.io/r-tutorials/statistics/tutorial8.html
